@@ -1,0 +1,62 @@
+name: Extract and Translate HTML (Per-File Output Version)
+
+on:
+  workflow_dispatch:
+    inputs:
+      lang:
+        description: "Target translation language (e.g. fr)"
+        required: true
+        default: "fr"
+      primary-lang:
+        description: "Primary source language (e.g. en)"
+        required: true
+        default: "en"
+      secondary-lang:
+        description: "Secondary source language (optional)"
+        required: false
+
+jobs:
+  extract_translate_pipeline:
+    runs-on: ubuntu-latest
+
+    env:
+      DEEPL_AUTH_KEY: ${{ secrets.DEEPL_AUTH_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install spacy bs4 regex pypinyin deepl html5lib
+
+      - name: Download spaCy models
+        run: |
+          python -m spacy download en_core_web_sm
+          python -m spacy download fr_core_news_sm
+          python -m spacy download zh_core_web_sm
+          python -m spacy download xx_ent_wiki_sm
+
+      - name: Run Batch Manager with Per-File Output
+        run: |
+          python batch_manager_per_file.py \
+            --lang "${{ github.event.inputs.lang }}" \
+            --primary-lang "${{ github.event.inputs.primary-lang }}" \
+            --secondary-lang "${{ github.event.inputs.secondary-lang }}"
+
+      - name: Upload translated artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: translated-outputs
+          path: |
+            translations_*.json
+            translatable_flat_*.json
+            translatable_structured_*.json
+            translatable_flat_sentences_*.json
+            processed_files/
