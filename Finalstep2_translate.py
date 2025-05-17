@@ -4,8 +4,6 @@ import deepl
 import argparse
 from pathlib import Path
 
-# (Functions remain unchanged: create_efficient_translatable_map, translate_json_file, apply_translations)
-
 def create_efficient_translatable_map(
     json_data, 
     translator, 
@@ -14,8 +12,81 @@ def create_efficient_translatable_map(
     secondary_lang=None, 
     memory_file=None
 ):
-    # ... [no change to this function]
-    # (Truncated here for brevity – you already have the full function)
+    translation_memory = {}
+    if memory_file and os.path.exists(memory_file):
+        try:
+            with open(memory_file, "r", encoding="utf-8") as f:
+                translation_memory = json.load(f)
+            print(f"Loaded {len(translation_memory)} cached translations")
+        except json.JSONDecodeError:
+            print(f"Warning: Corrupted translation memory file {memory_file}")
+
+    translatable_map = {}
+    texts_to_translate = []
+    token_indices = []
+    original_texts = {}
+
+    for block_id, block_data in json_data.items():
+        if "text" in block_data:
+            text = block_data["text"]
+            token = block_id
+            if text in translation_memory:
+                translatable_map[token] = translation_memory[text]
+            else:
+                texts_to_translate.append(text)
+                token_indices.append(token)
+                original_texts[token] = text
+
+        if "segments" in block_data:
+            for segment_id, segment_text in block_data["segments"].items():
+                token = f"{block_id}_{segment_id}"
+                if segment_text in translation_memory:
+                    translatable_map[token] = translation_memory[segment_text]
+                else:
+                    texts_to_translate.append(segment_text)
+                    token_indices.append(token)
+                    original_texts[token] = segment_text
+
+    if texts_to_translate:
+        batch_size = 330
+        for batch_idx in range(0, len(texts_to_translate), batch_size):
+            batch = texts_to_translate[batch_idx:batch_idx+batch_size]
+            translated_batch = []
+            try:
+                detection_results = translator.translate_text(
+                    [text[:100] for text in batch],
+                    target_lang=target_lang,
+                    preserve_formatting=True
+                )
+
+                for idx, detection in enumerate(detection_results):
+                    detected_lang = detection.detected_source_lang.lower()
+                    allowed_langs = {
+                        lang.lower() for lang in [primary_lang, secondary_lang] if lang
+                    }
+                    text = batch[idx]
+                    if allowed_langs and detected_lang in allowed_langs:
+                        result = translator.translate_text(text, target_lang=target_lang)
+                        translated_batch.append(result.text)
+                    else:
+                        translated_batch.append(text)
+            except Exception as e:
+                print(f"Translation skipped for batch (error: {str(e)[:50]}...)")
+                translated_batch.extend(batch)
+
+            for j in range(len(batch)):
+                global_index = batch_idx + j
+                token = token_indices[global_index]
+                original_text = original_texts[token]
+                final_text = translated_batch[j]
+                translatable_map[token] = final_text
+                translation_memory[original_text] = final_text
+
+    if memory_file and translation_memory:
+        os.makedirs(os.path.dirname(memory_file), exist_ok=True)
+        with open(memory_file, "w", encoding="utf-8") as f:
+            json.dump(translation_memory, f, ensure_ascii=False, indent=2)
+        print(f"Updated translation memory with {len(translation_memory)} entries")
 
     return translatable_map
 
@@ -33,7 +104,6 @@ def translate_json_file(
         raise ValueError("DEEPL_AUTH_KEY environment variable not set")
 
     translator = deepl.Translator(auth_key)
-    
     os.makedirs(memory_dir, exist_ok=True)
     memory_file = os.path.join(memory_dir, f"translation_memory_{target_lang.lower()}.json")
 
@@ -61,13 +131,8 @@ def translate_json_file(
             }
         translated_data[block_id] = translated_block
 
-    output_dir = os.path.dirname(output_file)
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(translated_data, f, indent=2, ensure_ascii=False)
-
     print(f"✅ Translation completed: {output_file}")
 
     if segment_file:
@@ -76,7 +141,6 @@ def translate_json_file(
             if "segments" in block_data:
                 for seg_id, seg_text in block_data["segments"].items():
                     segment_translations[seg_id] = seg_text
-
         with open(segment_file, "w", encoding="utf-8") as f:
             json.dump(segment_translations, f, indent=2, ensure_ascii=False)
         print(f"✅ Segment-only translations exported: {segment_file}")
@@ -123,7 +187,6 @@ def main():
         try:
             with open(args.input, "r", encoding="utf-8") as f:
                 data = json.load(f)
-
             memory_path = os.path.join(args.memory, f"translation_memory_{args.lang}.json")
             memory = {}
             if os.path.exists(memory_path):
@@ -158,7 +221,7 @@ def main():
                 with open(args.output, "w", encoding="utf-8") as out:
                     json.dump(translated_data, out, ensure_ascii=False, indent=2)
                 print(f"✅ Translated file written from memory to {args.output}")
-                exit(0)
+                return
 
         except Exception as e:
             print(f"⚠️ Error during memory check. Falling back to normal translation: {e}")
@@ -180,8 +243,6 @@ def main():
     except Exception as e:
         print(f"❌ Error: {e}")
         exit(1)
-
-    exit(0)
 
 if __name__ == "__main__":
     main()
