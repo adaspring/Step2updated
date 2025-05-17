@@ -63,4 +63,6 @@ jobs:
             translatable_flat_*.json
             translatable_structured_*.json
             translatable_flat_sentences_*.json
+            segments_only_*.json
+            non_translatable_*.html
             processed_files/
