@@ -623,3 +623,8 @@ Examples: --secondary-lang fr (French), --secondary-lang es (Spanish)"""
 
     # Run extraction
     extract_translatable_html(args.input_file, args.lang)
+    try:
+        extract_translatable_html(args.input_file, args.lang)
+    except Exception as e:
+        print(f"❌ Extraction failed: {e}")
+        sys.exit(1)
