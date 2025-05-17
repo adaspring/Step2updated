@@ -20,13 +20,11 @@ def create_efficient_translatable_map(
             print(f"Loaded {len(translation_memory)} cached translations")
         except json.JSONDecodeError:
             print(f"Warning: Corrupted translation memory file {memory_file}")
-    
+
     translatable_map = {}
     texts_to_translate = []
     token_indices = []
     original_texts = {}
-    reused_texts = []
-    added_texts = []
 
     for block_id, block_data in json_data.items():
         if "text" in block_data:
@@ -89,18 +87,7 @@ def create_efficient_translatable_map(
         with open(memory_file, "w", encoding="utf-8") as f:
             json.dump(translation_memory, f, ensure_ascii=False, indent=2)
         print(f"Updated translation memory with {len(translation_memory)} entries")
-    if usage_log_file:
-       usage_log = {
-            "reused": reused_texts,
-            "added": added_texts
-       }
-    with open(usage_log_file, "w", encoding="utf-8") as f:
-        json.dump(usage_log, f, ensure_ascii=False, indent=2)
-    print(f"✅ Memory usage log saved to {usage_log_file}")
 
-# ✅ Move these here — OUTSIDE the conditional
-    print(f"Reused from memory: {len(reused_texts)}")
-    print(f"New additions: {len(added_texts)}")
     return translatable_map
 
 def translate_json_file(
