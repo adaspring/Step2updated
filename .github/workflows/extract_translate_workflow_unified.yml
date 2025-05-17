@@ -1,4 +1,4 @@
-name: Extract and Translate HTML (Unified Per-File Workflow)
+name: Extract and Translate HTML (Uni Per-File Workflow)
 
 on:
   workflow_dispatch:
