@@ -117,13 +117,17 @@ def translate_json_file(
     with open(input_file, "r", encoding="utf-8") as f:
         json_data = json.load(f)
 
+    base = Path(input_file).stem.replace("translatable_flat_", "")
+        usage_log_file = f"memory_usage_{base}.json"
+    
     translatable_map = create_efficient_translatable_map(
-        json_data=json_data,
-        translator=translator,
-        target_lang=target_lang,
-        primary_lang=primary_lang,
-        secondary_lang=secondary_lang,
-        memory_file=memory_file
+    json_data=json_data,
+    translator=translator,
+    target_lang=target_lang,
+    primary_lang=primary_lang,
+    secondary_lang=secondary_lang,
+    memory_file=memory_file,
+    usage_log_file=usage_log_file
     )
 
     translated_data = {}
