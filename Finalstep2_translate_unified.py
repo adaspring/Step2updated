@@ -10,7 +10,8 @@ def create_efficient_translatable_map(
     target_lang="FR", 
     primary_lang=None, 
     secondary_lang=None, 
-    memory_file=None
+    memory_file=None,
+    usage_log_file=None
 ):
     translation_memory = {}
     if memory_file and os.path.exists(memory_file):
@@ -26,12 +27,16 @@ def create_efficient_translatable_map(
     token_indices = []
     original_texts = {}
 
+    reused_texts = []
+    added_texts = []
+
     for block_id, block_data in json_data.items():
         if "text" in block_data:
             text = block_data["text"]
             token = block_id
             if text in translation_memory:
                 translatable_map[token] = translation_memory[text]
+                reused_texts.append(text)
             else:
                 texts_to_translate.append(text)
                 token_indices.append(token)
@@ -42,6 +47,7 @@ def create_efficient_translatable_map(
                 token = f"{block_id}_{segment_id}"
                 if segment_text in translation_memory:
                     translatable_map[token] = translation_memory[segment_text]
+                    reused_texts.append(segment_text)
                 else:
                     texts_to_translate.append(segment_text)
                     token_indices.append(token)
@@ -51,42 +57,43 @@ def create_efficient_translatable_map(
         batch_size = 330
         for batch_idx in range(0, len(texts_to_translate), batch_size):
             batch = texts_to_translate[batch_idx:batch_idx+batch_size]
-            translated_batch = []
             try:
-                detection_results = translator.translate_text(
-                    [text[:100] for text in batch],
+                translated_batch = translator.translate_text(
+                    batch,
                     target_lang=target_lang,
                     preserve_formatting=True
                 )
+                if isinstance(translated_batch, deepl.TextResult):
+                    translated_batch = [translated_batch]
 
-                for idx, detection in enumerate(detection_results):
-                    detected_lang = detection.detected_source_lang.lower()
-                    allowed_langs = {
-                        lang.lower() for lang in [primary_lang, secondary_lang] if lang
-                    }
-                    text = batch[idx]
-                    if allowed_langs and detected_lang in allowed_langs:
-                        result = translator.translate_text(text, target_lang=target_lang)
-                        translated_batch.append(result.text)
-                    else:
-                        translated_batch.append(text)
+                for j, translated in enumerate(translated_batch):
+                    token = token_indices[batch_idx + j]
+                    text = original_texts[token]
+                    translatable_map[token] = translated.text
+                    translation_memory[text] = translated.text
+                    added_texts.append(text)
+
             except Exception as e:
-                print(f"Translation skipped for batch (error: {str(e)[:50]}...)")
-                translated_batch.extend(batch)
-
-            for j in range(len(batch)):
-                global_index = batch_idx + j
-                token = token_indices[global_index]
-                original_text = original_texts[token]
-                final_text = translated_batch[j]
-                translatable_map[token] = final_text
-                translation_memory[original_text] = final_text
+                print(f"❌ Translation failed in batch: {e}")
+                for j in range(len(batch)):
+                    token = token_indices[batch_idx + j]
+                    text = original_texts[token]
+                    translatable_map[token] = text
 
     if memory_file and translation_memory:
         os.makedirs(os.path.dirname(memory_file), exist_ok=True)
         with open(memory_file, "w", encoding="utf-8") as f:
             json.dump(translation_memory, f, ensure_ascii=False, indent=2)
         print(f"Updated translation memory with {len(translation_memory)} entries")
+
+    if usage_log_file:
+        usage_log = {
+            "reused": reused_texts,
+            "added": added_texts
+        }
+        with open(usage_log_file, "w", encoding="utf-8") as f:
+            json.dump(usage_log, f, ensure_ascii=False, indent=2)
+        print(f"✅ Memory usage log saved to {usage_log_file}")
 
     return translatable_map
 
