@@ -35,6 +35,7 @@ def run_extraction(file_path, lang, base_name):
     Path("translatable_flat.json").rename(f"translatable_flat_{base_name}.json")
     Path("translatable_structured.json").rename(f"translatable_structured_{base_name}.json")
     Path("translatable_flat_sentences.json").rename(f"translatable_flat_sentences_{base_name}.json")
+    Path("non_translatable.html").rename(f"non_translatable_{base_name}.html")
 
 def run_translation(base_name, lang, primary_lang, secondary_lang, memory_dir):
     print(f"Running translation for {base_name}")
@@ -42,6 +43,7 @@ def run_translation(base_name, lang, primary_lang, secondary_lang, memory_dir):
         "python", "Finalstep2_translate_unified.py",
         "--input", f"translatable_flat_{base_name}.json",
         "--output", f"translations_{base_name}.json",
+        "--segments", f"segments_{base_name}.json",
         "--lang", lang,
         "--primary-lang", primary_lang,
         "--memory", memory_dir,
