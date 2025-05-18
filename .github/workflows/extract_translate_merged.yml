@@ -1,4 +1,4 @@
-name: Extract and Translate Content
+name: Extr and Translate Content
 
 on:
   workflow_dispatch:
