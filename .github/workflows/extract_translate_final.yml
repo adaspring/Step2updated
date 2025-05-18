@@ -1,0 +1,48 @@
+
+name: Extract and Translate All HTML with step0
+
+on:
+  push:
+    paths:
+      - 'upload_files/**.html'
+      - 'Finalstep1_extract.py'
+      - 'Finalstep2_translate.py'
+      - 'step0_batch_process.py'
+  workflow_dispatch:
+
+jobs:
+  batch-process:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install beautifulsoup4 html5lib spacy regex pypinyin deepl
+
+      - name: Download spaCy models
+        run: |
+          python -m spacy download en_core_web_sm
+          python -m spacy download fr_core_news_sm
+
+      - name: Set DeepL API Key
+        run: echo "DEEPL_AUTH_KEY=${{ secrets.DEEPL_AUTH_KEY }}" >> $GITHUB_ENV
+
+      - name: Run step0 batch processor
+        run: python step0_batch_process.py
+
+      - name: Upload output
+        uses: actions/upload-artifact@v4
+        with:
+          name: batch-output
+          path: |
+            output/
+            translation_memory/
